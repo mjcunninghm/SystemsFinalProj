@@ -1,76 +1,157 @@
-#include <time.h>
+// Analog variables
+int leftLight = 7;
+int rightLight = 8;
+int leftSensor = A1;
+int rightSensor = A2;
 
-int leftLight = 8;
-int rightLight = 9;
+// Filter variables
+int const order = 3;
+unsigned int val_l[order];
+unsigned int val_r[order];
+unsigned long sum_l = 0;
+unsigned long sum_r = 0;
+float filt_val_l = 0;
+float filt_val_r = 0;
+int i, j;
 
-int leftSensor;
-int rightSensor;
-int leftValue;
-int rightValue;
+float threshold = .15/5*1023;
 
-int ap_threshold;
+// Timing variables
+unsigned long left_t, right_t, t, t1;
 
-clock_t t;
-double duration;
-
+// Serial communication
 unsigned long baud = 250000;
 
 void setup() {
   Serial.begin(baud);
+
+  delay(1000);
+
+  Serial.print(threshold);
+  Serial.print("\n");
+
+  for (i = 0; i < order - 1; i++) {
+    val_l[i] = 0;
+    val_r[i] = 0;
+  }
+  sum_l = 0;
+  sum_r = 0;
+
   pinMode(leftLight, OUTPUT);
   pinMode(rightLight, OUTPUT);
 }
 
 void loop() {
-  int wait = random(1,5);
+  int wait = random(1000,5000);
   delay(wait);
-  
-  int light = random(1,3);
-  if (light == 1) {
-    digitalWrite(leftLight, HIGH);
-    t = clock();
-    // while leftSensor < ap_threshold
-      // continue;
-      
-    t = clock() - t;
-    digitalWrite(leftLight, LOW);
-    duration = ((double)t)/CLOCKS_PER_SEC;
 
-    Serial.printf("LEFT %d", duration);
+  //int light = random(1,3);
+  int light = 1;
+  
+  if (light == 1) {
+    sum_l = 0;
+    
+    for (i = 0; i < order - 1; i++) {
+      val_l[i] = analogRead(leftSensor);
+      delayMicroseconds(1000);
+      sum_l += val_l[i];
+    }
+    
+    digitalWrite(leftLight, HIGH);
+    t = micros();
+    filt_val_l = 0;
+    
+    while (filt_val_l < threshold) {
+      t1 = micros();
+
+      val_l[i] = analogRead(leftSensor);
+      
+      sum_l += val_l[i++];
+      filt_val_l = (float)sum_l / order;
+      i = i%order;
+      sum_l -= val_l[i];
+
+      //Serial.print(filt_val_l);
+      //Serial.print("\n");
+
+      /*if (filt_val_l > threshold) {
+        float aoc = 0;
+        float prev_filt_val_l;
+        float count = 0;
+        
+        for (int n = 1; n < 2000; n++) {
+          if (val_l[i] == 0) {
+            continue;
+          }
+          
+          prev_filt_val_l = filt_val_l;
+          
+          val_l[i] = analogRead(leftSensor);
+          sum_l += val_l[i++];
+          filt_val_l = (float)sum_l / order;
+
+          aoc += (filt_val_l + prev_filt_val_l)*(.001/2);
+          
+          i = order - i;
+          sum_l -= val_l[i];
+
+          count++;
+        }
+
+        aoc = aoc/count;
+
+        if (aoc > .01) {
+          filt_val_l > threshold;
+        }
+        else {
+          filt_val_l < threshold;
+        }
+      }*/
+
+      delayMicroseconds(1000 - (micros() - t1));
+    }
+      
+    t = micros() - t;
+    t = (float) t/1000;
+    digitalWrite(leftLight, LOW);
+
+    Serial.print("LEFT Reaction Time: ");
+    Serial.print(t);
+    Serial.print("ms");
+    Serial.print("\n");
   }
   else if (light == 2) {
+    for (i = 0; i < order - 1; i++) {
+      val_r[i] = analogRead(rightSensor);
+      delayMicroseconds(1000);
+      sum_r += val_r[i];
+    }
+    
     digitalWrite(rightLight, HIGH);
-    t = clock();
-    // while rightSensor < ap_threshold
-      // continue;
+    t = micros();
+    filt_val_r = 0;
+    
+    while (filt_val_r < threshold) {
+      t1 = micros();
 
-    t = clock() - t;
+      val_r[i] = analogRead(rightSensor);
+      sum_r += val_r[i++];
+      filt_val_r = (float)sum_r / order;
+      i = order - i;
+      sum_r -= val_r[i];
+
+      Serial.print(filt_val_r);
+      Serial.print("\n");
+
+      delayMicroseconds(1000 - (micros() - t1));
+    }
+
+    t = micros() - t;
     digitalWrite(rightLight, LOW);
-    duration = ((double)t)/CLOCKS_PER_SEC;
 
-    Serial.printf("RIGHT %d", duration);
-  }
-  else {
-    digitalWrite(leftLight, HIGH);
-    digitalWrite(rightLight, HIGH);
-    t = clock();
-    // while leftSensor < ap_threshold || rightSensor < ap_threshold
-      // if leftSensor < ap_threshold && rightSensor >= ap_threshold
-        // digitalWrite(leftLight, HIGH);
-        // digitalWrite(rightLight, LOW);
-      // else if leftSensor >= ap_threshold
-        // digitalWrite(rightLight, HIGH);
-        // digitalWrite(leftLight, LOW);
-      // else
-        // digitalWrite(leftLight, HIGH);
-        // digitalWrite(rightLight, HIGH);
-      // continue;
-
-    t = clock() - t;
-    digitalWrite(leftLight, LOW);
-    digitalWrite(rightLight, LOW);
-    duration = ((double)t)/CLOCKS_PER_SEC;
-
-    Serial.printf("LEFT/RIGHT %d", duration);
+    Serial.print("RIGHT Reaction Time: ");
+    Serial.print(t);
+    Serial.print("s");
+    Serial.print("\n");
   }
 }
